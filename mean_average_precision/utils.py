@@ -25,10 +25,12 @@ SOFTWARE.
 import numpy as np
 import pandas as pd
 
+
 def sort_by_col(array, idx=1):
     """Sort np.array by column."""
     order = np.argsort(array[:, idx])[::-1]
     return array[order]
+
 
 def compute_precision_recall(tp, fp, n_positives):
     """ Compute Preision/Recall.
@@ -41,12 +43,14 @@ def compute_precision_recall(tp, fp, n_positives):
     Returns:
         precision (np.array)
         recall (np.array)
+        fp (np.array)
     """
     tp = np.cumsum(tp)
     fp = np.cumsum(fp)
     recall = tp / max(float(n_positives), 1)
     precision = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
-    return precision, recall
+    return precision, recall, fp
+
 
 def compute_average_precision(precision, recall):
     """ Compute Avearage Precision by all points.
@@ -66,6 +70,7 @@ def compute_average_precision(precision, recall):
     average_precision = np.sum((recall[ids + 1] - recall[ids]) * precision[ids + 1])
     return average_precision
 
+
 def compute_average_precision_with_recall_thresholds(precision, recall, recall_thresholds):
     """ Compute Avearage Precision by specific points.
 
@@ -83,6 +88,7 @@ def compute_average_precision_with_recall_thresholds(precision, recall, recall_t
         average_precision = average_precision + p / recall_thresholds.size
     return average_precision
 
+
 def compute_iou(pred, gt):
     """ Calculates IoU (Jaccard index) of two sets of bboxes:
             IOU = pred ∩ gt / (area(pred) + area(gt) - pred ∩ gt)
@@ -95,6 +101,7 @@ def compute_iou(pred, gt):
         Return value:
             iou (np.array): intersection over union
     """
+
     def get_box_area(box):
         return (box[:, 2] - box[:, 0] + 1.) * (box[:, 3] - box[:, 1] + 1.)
 
@@ -113,6 +120,7 @@ def compute_iou(pred, gt):
     union_area = get_box_area(_gt) + get_box_area(_pred) - intersection_area
     iou = (intersection_area / union_area).reshape(pred.shape[0], gt.shape[0])
     return iou
+
 
 def compute_match_table(preds, gt, img_id):
     """ Compute match table.
@@ -133,6 +141,7 @@ def compute_match_table(preds, gt, img_id):
     Output format:
         match_table: [img_id, confidence, iou, difficult, crowd]
     """
+
     def _tile(arr, nreps, axis=0):
         return np.repeat(arr, nreps, axis=axis).reshape(nreps, -1).tolist()
 
@@ -151,6 +160,7 @@ def compute_match_table(preds, gt, img_id):
         match_table["difficult"] = _empty_array_2d(preds.shape[0])
         match_table["crowd"] = _empty_array_2d(preds.shape[0])
     return pd.DataFrame(match_table, columns=list(match_table.keys()))
+
 
 def row_to_vars(row):
     """ Convert row of pd.DataFrame to variables.
@@ -173,6 +183,7 @@ def row_to_vars(row):
     crowd = np.array(row["crowd"])
     order = np.argsort(iou)[::-1]
     return img_id, conf, iou, difficult, crowd, order
+
 
 def check_box(iou, difficult, crowd, order, matched_ind, iou_threshold, mpolicy="greedy"):
     """ Check box for tp/fp/ignore.
