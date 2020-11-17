@@ -113,14 +113,15 @@ class MeanAveragePrecision2d(MetricBase):
             metric[t] = {}
             aps_t = np.zeros((1, self.num_classes), dtype=np.float32)
             for class_id in range(self.num_classes):
-                aps_t[0, class_id], precision, recall, fp = self._evaluate_class(
+                aps_t[0, class_id], precision, recall, cumulative_fp, confs = self._evaluate_class(
                     class_id, t, recall_thresholds, mpolicy
                 )
                 metric[t][class_id] = {}
                 metric[t][class_id]["ap"] = aps_t[0, class_id]
                 metric[t][class_id]["precision"] = precision
                 metric[t][class_id]["recall"] = recall
-                metric[t][class_id]["fp"] = fp
+                metric[t][class_id]["fp"] = cumulative_fp
+                metric[t][class_id]["score_cutoff"] = confs
             aps = np.concatenate((aps, aps_t), axis=0)
         metric["mAP"] = aps.mean(axis=1).mean(axis=0)
         return metric
@@ -141,13 +142,15 @@ class MeanAveragePrecision2d(MetricBase):
             average_precision (np.array)
             precision (np.array)
             recall (np.array)
-            fp (np.array)
+            cumulative_fp (np.array)
+            confs (np.array)
         """
         table = self.match_table[class_id].sort_values(by=['confidence'], ascending=False)
         matched_ind = {}
         nd = len(table)
         tp = np.zeros(nd, dtype=np.float64)
         fp = np.zeros(nd, dtype=np.float64)
+        confs = np.zeros(nd, dtype=np.float64)
         for d in range(nd):
             img_id, conf, iou, difficult, crowd, order = row_to_vars(table.iloc[d])
             if img_id not in matched_ind:
@@ -166,14 +169,15 @@ class MeanAveragePrecision2d(MetricBase):
                 matched_ind[img_id].append(idx)
             elif res == 'fp':
                 fp[d] = 1
-        precision, recall, fp = compute_precision_recall(tp, fp, self.class_counter[:, class_id].sum())
+            confs[d] = conf
+        precision, recall, cumulative_fp = compute_precision_recall(tp, fp, self.class_counter[:, class_id].sum())
         if recall_thresholds is None:
             average_precision = compute_average_precision(precision, recall)
         else:
             average_precision = compute_average_precision_with_recall_thresholds(
                 precision, recall, recall_thresholds
             )
-        return average_precision, precision, recall, fp
+        return average_precision, precision, recall, cumulative_fp, confs
 
     def _init(self):
         """ Initialize internal state."""
